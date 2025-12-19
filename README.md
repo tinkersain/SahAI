@@ -1,232 +1,330 @@
 # 🇮🇳 SahAI - Voice-First Hindi Government Scheme Assistant
 
-A **voice-first, agentic AI system** that helps users identify and apply for Indian government welfare schemes. The system operates **end-to-end in Hindi** with true agentic workflow (Planner-Executor-Evaluator loop).
+A **voice-first, agentic AI system** that helps users identify and apply for Indian government welfare schemes. The system operates **end-to-end in Hindi** with a true **Planner-Executor-Evaluator** agentic workflow.
 
-## ✨ Key Features
+## ✨ Key Features Matching Requirements
 
-### Voice-First Interaction
+### ✅ Voice-First Interaction (MANDATORY)
 
-- **Primary**: Hindi voice input and voice output
+- **Primary**: Hindi voice input and voice output using Gemini STT + gTTS
 - **Secondary**: Text input support (also in Hindi)
 - Complete STT → LLM → TTS pipeline in Hindi
 
-### True Agentic Workflow
+### ✅ Native Language Support (Non-English)
 
-- **Planner**: Analyzes user intent and plans next action
-- **Executor**: Executes actions using tools (eligibility check, scheme lookup)
-- **Evaluator**: Evaluates results and decides continuation
+- End-to-end Hindi language processing
+- Hindi STT (Speech-to-Text) using Gemini
+- Hindi LLM reasoning using Gemini
+- Hindi TTS (Text-to-Speech) using gTTS
 
-### Tools Used
-
-1. **Eligibility Engine**: Checks user eligibility against scheme criteria
-2. **Scheme Database**: Retrieves scheme information (mock API)
-3. **AI Service** (Gemini): Smart clarifications and responses
-
-### Memory & Conversation
-
-- Session-based conversation memory across turns
-- Handles contradictions in user information
-- Context-aware responses
-
-### Failure Handling
-
-- STT failure recovery with fallback
-- TTS fallback (gTTS → browser TTS)
-- Graceful error messages in Hindi
-
-## 🏗️ Architecture
+### ✅ True Agentic Workflow (Planner-Executor-Evaluator Loop)
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      SahAI System                           │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌──────────┐     ┌──────────────────────────────────────┐ │
-│  │  Voice   │────▶│           STT (Whisper)              │ │
-│  │  Input   │     │         Hindi → Text                  │ │
-│  └──────────┘     └───────────────┬──────────────────────┘ │
-│                                   │                         │
-│                                   ▼                         │
-│  ┌────────────────────────────────────────────────────────┐│
-│  │                    AGENT LOOP                          ││
-│  │  ┌──────────┐   ┌──────────┐   ┌──────────┐           ││
-│  │  │ PLANNER  │──▶│ EXECUTOR │──▶│EVALUATOR │           ││
-│  │  │          │   │          │   │          │           ││
-│  │  │ - Intent │   │ - Tools  │   │ - Check  │           ││
-│  │  │ - State  │   │ - Action │   │ - Decide │           ││
-│  │  └──────────┘   └────┬─────┘   └──────────┘           ││
-│  │                      │                                 ││
-│  │         ┌────────────┼────────────┐                   ││
-│  │         ▼            ▼            ▼                   ││
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐              ││
-│  │  │Eligibility│ │ Scheme  │ │    AI    │              ││
-│  │  │  Engine  │ │Database │ │ Service  │              ││
-│  │  │  (Tool)  │ │ (Tool)  │ │ (Gemini) │              ││
-│  │  └──────────┘ └──────────┘ └──────────┘              ││
-│  │                                                       ││
-│  │  ┌──────────────────────────────────────────────────┐││
-│  │  │               MEMORY                             │││
-│  │  │  - User Data (age, income, etc.)                 │││
-│  │  │  - Conversation History                          │││
-│  │  │  - Current Context                               │││
-│  │  └──────────────────────────────────────────────────┘││
-│  └────────────────────────────────────────────────────────┘│
-│                                   │                         │
-│                                   ▼                         │
-│  ┌──────────┐     ┌──────────────────────────────────────┐ │
-│  │  Voice   │◀────│            TTS (gTTS)                │ │
-│  │  Output  │     │          Text → Hindi                 │ │
-│  └──────────┘     └──────────────────────────────────────┘ │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│              AGENTIC STATE MACHINE                   │
+├─────────────────────────────────────────────────────┤
+│                                                      │
+│  ┌──────────────────────────────────────────────┐   │
+│  │              PLANNER PHASE                    │   │
+│  │  • Analyze user intent                        │   │
+│  │  • Extract user data from input              │   │
+│  │  • Select appropriate tools                  │   │
+│  │  • Create execution plan                     │   │
+│  └─────────────────┬────────────────────────────┘   │
+│                    ▼                                 │
+│  ┌──────────────────────────────────────────────┐   │
+│  │              EXECUTOR PHASE                   │   │
+│  │  • Execute selected tools                    │   │
+│  │  • Eligibility Engine                        │   │
+│  │  • Scheme Retrieval                          │   │
+│  │  • Document Checker                          │   │
+│  │  • Application Status (Mock API)             │   │
+│  └─────────────────┬────────────────────────────┘   │
+│                    ▼                                 │
+│  ┌──────────────────────────────────────────────┐   │
+│  │              EVALUATOR PHASE                  │   │
+│  │  • Check execution completeness              │   │
+│  │  • Detect contradictions                     │   │
+│  │  • Decide: respond / re-execute / clarify    │   │
+│  │  • Quality score assessment                  │   │
+│  └──────────────────────────────────────────────┘   │
+│                                                      │
+└─────────────────────────────────────────────────────┘
+```
+
+### ✅ Tool Usage (At Least 2 Tools)
+
+1. **Eligibility Engine Tool**:
+
+   - Checks user eligibility against scheme criteria
+   - Uses age, income, gender, category, BPL status
+   - Returns eligible, partially eligible, and not eligible schemes
+
+2. **Scheme Retrieval Tool**:
+
+   - Searches and retrieves scheme information
+   - Supports query-based search
+   - Returns scheme details, benefits, helplines
+
+3. **Document Checker Tool**:
+
+   - Lists required documents for each scheme
+   - Provides document descriptions in Hindi
+
+4. **Application Status Tool (Mock API)**:
+
+   - Simulates checking application status
+   - Returns status, stage, next steps
+
+5. **User Data Extractor Tool**:
+   - Extracts structured data from Hindi text
+   - Handles age, income, gender, category patterns
+
+### ✅ Conversation Memory Across Turns
+
+- **Session-based memory**: Tracks user data across conversation
+- **Field history tracking**: Remembers what user said and when
+- **Contradiction detection**: Identifies when user provides conflicting info
+- **Confirmation tracking**: Marks which data is confirmed
+
+### ✅ Failure Handling
+
+- **STT Error Recovery**:
+
+  - No audio detection
+  - Unclear speech handling
+  - Partial transcription handling
+  - Language error recovery
+
+- **Missing Information Handling**:
+
+  - Graceful prompts for required data
+  - Explains why information is needed
+
+- **Contradiction Resolution**:
+
+  - Detects conflicting user statements
+  - Asks for clarification
+  - Allows user to confirm correct value
+
+- **System Error Recovery**:
+  - Graceful degradation
+  - Fallback responses
+  - Escalation to helpline when needed
+
+## 🏗️ System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        SahAI System v3.0                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌──────────┐     ┌────────────────────────────────────────┐    │
+│  │  🎤 Voice │────▶│      STT (Gemini Hindi)               │    │
+│  │  Input   │     │    Audio → Hindi Text + Confidence     │    │
+│  └──────────┘     └──────────────────┬─────────────────────┘    │
+│                                      │                           │
+│                                      ▼                           │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                  AGENTIC AGENT                             │  │
+│  │  ┌─────────────────────────────────────────────────────┐  │  │
+│  │  │                 STATE MACHINE                        │  │  │
+│  │  │  IDLE → RECEIVING → PLANNING → EXECUTING →          │  │  │
+│  │  │  EVALUATING → GENERATING_RESPONSE → COMPLETE        │  │  │
+│  │  └─────────────────────────────────────────────────────┘  │  │
+│  │                                                            │  │
+│  │  ┌───────────┐    ┌───────────┐    ┌───────────┐         │  │
+│  │  │  PLANNER  │───▶│ EXECUTOR  │───▶│ EVALUATOR │         │  │
+│  │  └───────────┘    └─────┬─────┘    └───────────┘         │  │
+│  │                         │                                  │  │
+│  │         ┌───────────────┼───────────────┐                 │  │
+│  │         ▼               ▼               ▼                 │  │
+│  │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐      │  │
+│  │  │ Eligibility  │ │   Scheme     │ │  Document    │      │  │
+│  │  │   Engine     │ │  Retrieval   │ │   Checker    │      │  │
+│  │  └──────────────┘ └──────────────┘ └──────────────┘      │  │
+│  │         │               │               │                 │  │
+│  │         └───────────────┼───────────────┘                 │  │
+│  │                         ▼                                  │  │
+│  │  ┌─────────────────────────────────────────────────────┐  │  │
+│  │  │                    MEMORY                            │  │  │
+│  │  │  • User Data (age, income, gender, category)        │  │  │
+│  │  │  • Conversation History (20 turns)                  │  │  │
+│  │  │  • Contradiction Tracking                           │  │  │
+│  │  │  • Failure Context                                  │  │  │
+│  │  └─────────────────────────────────────────────────────┘  │  │
+│  │                                                            │  │
+│  │  ┌─────────────────────────────────────────────────────┐  │  │
+│  │  │               FAILURE HANDLER                        │  │  │
+│  │  │  • STT Error Recovery                                │  │  │
+│  │  │  • Missing Info Prompts                              │  │  │
+│  │  │  • Contradiction Resolution                          │  │  │
+│  │  │  • Escalation Logic                                  │  │  │
+│  │  └─────────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                                      │                           │
+│                                      ▼                           │
+│  ┌──────────┐     ┌────────────────────────────────────────┐    │
+│  │  🔊 Voice │◀────│      TTS (gTTS Hindi)                 │    │
+│  │  Output  │     │    Hindi Text → Audio                  │    │
+│  └──────────┘     └────────────────────────────────────────┘    │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ## 📁 Project Structure
 
 ```
 SahAI/
-├── app.py                 # FastAPI application (voice-first)
-├── requirements.txt       # Python dependencies
-├── .env                   # Environment variables (create this)
+├── app.py                    # FastAPI app with voice endpoints
+├── requirements.txt          # Python dependencies
+├── .env                      # Environment variables (GEMINI_API_KEY)
 │
 ├── agent/
-│   ├── agent.py          # Planner-Executor-Evaluator loop
-│   └── memory.py         # Conversation memory management
+│   ├── __init__.py          # Module exports
+│   ├── agent.py             # Original simple agent (backward compat)
+│   ├── agentic_agent.py     # NEW: Planner-Executor-Evaluator agent
+│   ├── state_machine.py     # NEW: Agentic state machine
+│   ├── tools.py             # NEW: Tool system (5 tools)
+│   ├── memory.py            # Enhanced memory with contradictions
+│   └── failure_handler.py   # NEW: Failure recovery system
 │
 ├── audio/
-│   ├── stt.py            # Speech-to-Text (Whisper/Google)
-│   └── tts.py            # Text-to-Speech (gTTS)
+│   ├── stt.py               # Speech-to-Text (Gemini)
+│   └── tts.py               # Text-to-Speech (gTTS)
 │
 ├── services/
-│   ├── ai_service.py     # Gemini AI integration
-│   └── eligibility_service.py  # Eligibility checking tool
+│   └── ai_service.py        # Gemini LLM integration
 │
 ├── data/
-│   ├── scheme_database.py # Scheme data management
-│   └── schemes.json       # Government schemes data
+│   ├── scheme_database.py   # Scheme data management
+│   └── schemes.json         # Government schemes data (10+ schemes)
 │
 ├── config/
-│   └── settings.py       # Application configuration
+│   └── settings.py          # Application settings
 │
-└── audio_output/         # Generated TTS audio files
+├── audio_output/            # Generated TTS audio files
+└── logs/                    # Application logs
 ```
 
 ## 🚀 Quick Start
 
-### 1. Prerequisites
-
-- Python 3.10+
-- ffmpeg (for audio processing)
-- Microphone access (for voice input)
-
-### 2. Installation
+### 1. Install Dependencies
 
 ```bash
-# Clone repository
-git clone https://github.com/tinkersain/SahAI.git
-cd SahAI
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# OR
-.\venv\Scripts\activate   # Windows
-
-# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 3. Configuration
+### 2. Set Environment Variables
 
-Create `.env` file:
+Create a `.env` file:
 
 ```env
 GEMINI_API_KEY=your_gemini_api_key
-WHISPER_MODEL=base
+GEMINI_MODEL=gemini-2.0-flash
 ```
 
-### 4. Run
+### 3. Run the Server
 
 ```bash
-uvicorn app:app --reload --host localhost --port 8000
+python app.py
+# or
+uvicorn app:app --reload --port 8000
 ```
 
-Open http://localhost:8000 in browser.
+### 4. Access the Interface
 
-## 🎤 Usage
+Open `http://localhost:8000` in your browser.
 
-### Voice Interaction (Primary)
+## 🎯 Example Interactions
 
-1. Click the microphone button 🎤
-2. Speak in Hindi: "मुझे पेंशन योजना के बारे में बताओ"
-3. Click again to stop
-4. Listen to the Hindi response
+### Eligibility Check Flow
 
-### Text Interaction (Secondary)
+```
+User (Voice): "मेरी उम्र 65 साल है और आय 1 लाख है, कौन सी योजना मिल सकती है?"
 
-Type in Hindi in the text box and press Enter.
+Agent Processing:
+1. PLANNER: Intent=eligibility_check, Tools=[eligibility_engine, scheme_retrieval]
+2. EXECUTOR:
+   - user_data_extractor → age=65, income=100000
+   - eligibility_engine → [old-age-pension: eligible, ayushman: eligible]
+3. EVALUATOR: Complete, quality=0.95
+4. RESPONSE: "आप वृद्धावस्था पेंशन योजना और आयुष्मान भारत के लिए पात्र हैं..."
 
-### Example Conversations
+Agent (Voice): "आप 2 योजनाओं के लिए पात्र हैं:
+1. राष्ट्रीय वृद्धावस्था पेंशन - ₹500/माह
+2. आयुष्मान भारत - ₹5 लाख स्वास्थ्य बीमा
+हेल्पलाइन: 1800-111-555"
+```
 
-**User**: "नमस्ते"
-**SahAI**: "नमस्ते! मैं सहाई हूं, आपका सरकारी योजना सहायक..."
+### Contradiction Handling Flow
 
-**User**: "मैं 65 साल का हूं, पेंशन योजना के बारे में बताओ"
-**SahAI**: "वृद्धावस्था पेंशन योजना के बारे में जानकारी..."
+```
+User: "मेरी उम्र 45 साल है"
+Agent: "ठीक है, आपकी उम्र 45 साल नोट कर ली।"
 
-**User**: "क्या मैं इसके लिए पात्र हूं?"
-**SahAI**: "आपकी वार्षिक आय क्या है?"
+User: "मेरी उम्र 55 साल है"
+Agent: "आपने पहले उम्र 45 साल बताई थी, अब 55 साल बता रहे हैं। कौन सी सही है?"
 
-**User**: "2 लाख"
-**SahAI**: "बधाई हो! आप वृद्धावस्था पेंशन योजना के लिए पात्र हैं..."
+User: "55 सही है"
+Agent: "ठीक है, मैंने उम्र 55 साल अपडेट किया है।"
+```
 
-## 🔧 Technical Details
+### STT Error Recovery Flow
 
-### Agent States
+```
+[Unclear audio detected]
+Agent: "समझ नहीं आया। कृपया धीरे और साफ़ बोलें।"
 
-- `GREETING` - Initial welcome state
-- `COLLECTING_INFO` - Gathering user information
-- `CHECKING_ELIGIBILITY` - Checking scheme eligibility
-- `SHOWING_RESULTS` - Displaying results
-- `ERROR_RECOVERY` - Handling unclear inputs
+[Still unclear]
+Agent: "कृपया दूसरे शब्दों में बताएं।"
 
-### Tools
+[Third attempt unclear]
+Agent: "आप चाहें तो लिखकर भी बता सकते हैं।"
+```
 
-1. **EligibilityService.check_eligibility()** - Checks eligibility rules
-2. **SchemeDatabase.get_scheme_by_id()** - Fetches scheme info
-3. **AIService.generate_clarification()** - Smart Hindi responses
+## 📊 API Endpoints
 
-### Supported Schemes (Sample)
+| Endpoint             | Method | Description                    |
+| -------------------- | ------ | ------------------------------ |
+| `/`                  | GET    | Web UI (voice-first interface) |
+| `/voice`             | POST   | Voice input (Hindi audio)      |
+| `/chat`              | POST   | Text input (Hindi text)        |
+| `/audio/{filename}`  | GET    | Serve generated audio          |
+| `/health`            | GET    | Health check                   |
+| `/session/{id}`      | GET    | Get session info               |
+| `/debug/memory/{id}` | GET    | Debug memory state             |
 
-- वृद्धावस्था पेंशन (Old Age Pension)
-- विधवा पेंशन (Widow Pension)
-- PM आवास योजना (PM Awas Yojana)
-- PM किसान (PM-KISAN)
-- आयुष्मान भारत (Ayushman Bharat)
-- और 20+ योजनाएं...
+## 🔧 Configuration
 
-## 📝 API Endpoints
+### Environment Variables
 
-| Endpoint            | Method | Description              |
-| ------------------- | ------ | ------------------------ |
-| `/`                 | GET    | Web interface            |
-| `/voice`            | POST   | Voice input (audio file) |
-| `/chat`             | POST   | Text input               |
-| `/audio/{filename}` | GET    | Serve TTS audio          |
-| `/health`           | GET    | Health check             |
-| `/session/{id}`     | GET    | Get session info         |
+| Variable           | Description                   | Default            |
+| ------------------ | ----------------------------- | ------------------ |
+| `GEMINI_API_KEY`   | Google Gemini API key         | Required           |
+| `GEMINI_MODEL`     | Gemini model name             | `gemini-2.0-flash` |
+| `WHISPER_MODEL`    | Whisper model size (fallback) | `base`             |
+| `AUDIO_OUTPUT_DIR` | TTS output directory          | `audio_output`     |
 
-## 🤝 Contributing
+## 📝 Schemes Supported
 
-1. Fork the repository
-2. Create feature branch
-3. Make changes
-4. Submit pull request
+1. **PM-KISAN** - किसान सम्मान निधि
+2. **PM Awas (Gramin)** - ग्रामीण आवास योजना
+3. **PM Awas (Urban)** - शहरी आवास योजना
+4. **Old Age Pension** - वृद्धावस्था पेंशन
+5. **Widow Pension** - विधवा पेंशन
+6. **Disability Pension** - विकलांगता पेंशन
+7. **Jan Dhan** - जन धन योजना
+8. **Ayushman Bharat** - आयुष्मान भारत
+9. **Sukanya Samriddhi** - सुकन्या समृद्धि
+10. **PM Ujjwala** - उज्ज्वला योजना
+
+## 🔒 Security Notes
+
+- Never commit `.env` file
+- API keys should be environment variables
+- Session data is stored in memory (not persistent)
 
 ## 📄 License
 
 MIT License
-
----
-
-**Built for accessible government scheme assistance in Hindi** 🇮🇳
