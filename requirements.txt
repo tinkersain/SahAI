@@ -1,0 +1,20 @@
+# SahAI - Voice-First Hindi Government Scheme Assistant
+# Core Requirements
+
+# Web Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# Audio Processing - Speech-to-Text (using Gemini, fallback to Google)
+SpeechRecognition>=3.10.0
+pydub>=0.25.1
+
+# Audio Processing - Text-to-Speech  
+gtts>=2.4.0
+
+# AI Service (Gemini) - for both LLM and STT
+google-genai>=1.0.0
+
+# Utilities
+python-dotenv>=1.0.0
