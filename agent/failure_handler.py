@@ -146,7 +146,7 @@ class FailureHandler:
             FailureType.INPUT_EMPTY: [
                 RecoveryAction(
                     action_type="prompt",
-                    message_hi="कृपया अपना सवाल बताएं। मैं सरकारी योजनाओं में मदद कर सकता हूं।",
+                    message_hi="कृपया अपना सवाल बताएं। मैं सरकारी योजनाओं में मदद कर सकती हूं।",
                     message_en="Please ask your question. I can help with government schemes."
                 )
             ],
@@ -154,7 +154,7 @@ class FailureHandler:
             FailureType.INPUT_OFF_TOPIC: [
                 RecoveryAction(
                     action_type="redirect",
-                    message_hi="मैं केवल सरकारी योजनाओं में मदद कर सकता हूं। क्या आप किसी योजना के बारे में जानना चाहते हैं?",
+                    message_hi="मैं केवल सरकारी योजनाओं में मदद कर सकती हूं। क्या आप किसी योजना के बारे में जानना चाहते हैं?",
                     message_en="I can only help with government schemes. Would you like to know about any scheme?"
                 )
             ],
@@ -163,13 +163,13 @@ class FailureHandler:
             FailureType.TOOL_EXECUTION_ERROR: [
                 RecoveryAction(
                     action_type="retry_tool",
-                    message_hi="एक पल रुकें, फिर से कोशिश कर रहा हूं...",
+                    message_hi="एक पल रुकें, फिर से कोशिश कर रही हूं...",
                     message_en="One moment, trying again...",
                     requires_user_input=False
                 ),
                 RecoveryAction(
                     action_type="use_fallback",
-                    message_hi="कुछ तकनीकी समस्या है। मैं दूसरे तरीके से मदद करता हूं।",
+                    message_hi="कुछ तकनीकी समस्या है। मैं दूसरे तरीके से मदद करती हूं।",
                     message_en="Technical issue. Let me help another way."
                 )
             ],
@@ -357,7 +357,7 @@ class FailureHandler:
 • नज़दीकी CSC केंद्र पर जाएं
 • ग्राम पंचायत कार्यालय से संपर्क करें
 
-क्या मैं किसी और तरह से मदद कर सकता हूं?"""
+क्या मैं किसी और तरह से मदद कर सकती हूं?"""
     
     def clear_history(self):
         """Clear failure history (e.g., on session reset)"""

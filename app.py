@@ -27,9 +27,25 @@ from services.ai_service import AIService
 from data.scheme_database import SchemeDatabase
 
 # Ensure directories exist
-Path("audio_output").mkdir(exist_ok=True)
+Path(settings.audio.audio_output_dir).mkdir(exist_ok=True)
 Path("logs").mkdir(exist_ok=True)
 Path("static").mkdir(exist_ok=True)
+
+
+def clear_audio_output():
+    """Clear all audio files from the output directory"""
+    audio_dir = Path(settings.audio.audio_output_dir)
+    if audio_dir.exists():
+        for audio_file in audio_dir.glob("*.mp3"):
+            try:
+                audio_file.unlink()
+            except Exception as e:
+                print(f"Error deleting {audio_file}: {e}")
+        for audio_file in audio_dir.glob("*.wav"):
+            try:
+                audio_file.unlink()
+            except Exception as e:
+                print(f"Error deleting {audio_file}: {e}")
 
 # Initialize services
 stt = SpeechToText()
@@ -125,7 +141,10 @@ def generate_audio_response(text: str) -> Optional[str]:
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
-    """Voice-first Hindi interface"""
+    """Voice-first Hindi interface - clears audio output on load"""
+    # Clear previous audio files when page is reloaded
+    clear_audio_output()
+    
     return """
 <!DOCTYPE html>
 <html lang="hi">
@@ -303,7 +322,7 @@ async def home():
         </div>
         
         <div class="info-box">
-            <h3>📋 मैं इनमें मदद कर सकता हूं:</h3>
+            <h3>📋 मैं इनमें मदद कर सकती हूं:</h3>
             <ul>
                 <li>पेंशन योजना (वृद्धावस्था, विधवा, विकलांग)</li>
                 <li>आवास योजना (ग्रामीण/शहरी)</li>
@@ -470,7 +489,7 @@ async def home():
                     voiceBtn.classList.remove('recording');
                     voiceBtn.textContent = '🎤';
                 }
-                setStatus('⏳ समझ रहा हूं...');
+                setStatus('⏳ समझ रही हूं...');
             }
         }
         
@@ -536,7 +555,7 @@ async def home():
             input.value = '';
             stopSpeaking();
             addMessage(text, 'user');
-            setStatus('⏳ सोच रहा हूं...');
+            setStatus('⏳ सोच रही हूं...');
             setProcessing(true);
             
             try {
@@ -673,7 +692,7 @@ async def text_input(request: TextRequest):
 @app.get("/audio/{filename}")
 async def serve_audio(filename: str):
     """Serve generated audio files"""
-    file_path = Path("audio_output") / filename
+    file_path = Path(settings.audio.audio_output_dir) / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Audio not found")
     return FileResponse(file_path, media_type="audio/mpeg")
