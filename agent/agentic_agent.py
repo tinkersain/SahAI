@@ -398,6 +398,21 @@ class AgenticAgent:
         all_missing.extend(plan.missing_info)
         all_missing = list(set(all_missing))  # Deduplicate
         
+        # Filter out info that is already available!
+        available = plan.available_info
+        actually_missing = []
+        for field in all_missing:
+            if field == "age" and available.get("age"):
+                continue  # Already have age
+            if field == "income" and available.get("income"):
+                continue  # Already have income
+            if field == "gender" and available.get("gender"):
+                continue
+            if field == "category" and available.get("category"):
+                continue
+            actually_missing.append(field)
+        all_missing = actually_missing
+        
         # Check for contradictions
         has_contradiction = self.memory.has_pending_contradictions()
         contradiction_details = None
@@ -507,22 +522,54 @@ class AgenticAgent:
         # Conversation history
         history = self.memory.get_history_text()
         
+        # Build info already collected message
+        collected_info = plan.available_info
+        collected_fields = []
+        if collected_info.get('age'):
+            collected_fields.append(f"उम्र: {collected_info['age']} वर्ष")
+        if collected_info.get('income'):
+            collected_fields.append(f"आय: ₹{collected_info['income']}")
+        if collected_info.get('gender'):
+            collected_fields.append(f"लिंग: {collected_info['gender']}")
+        if collected_info.get('category'):
+            collected_fields.append(f"श्रेणी: {collected_info['category']}")
+        if collected_info.get('bpl'):
+            collected_fields.append("BPL: हां")
+        
+        collected_info_text = ", ".join(collected_fields) if collected_fields else "कोई जानकारी नहीं"
+        
+        # Determine what is still missing for eligibility check
+        missing_fields = []
+        if plan.intent == IntentType.ELIGIBILITY_CHECK:
+            if not collected_info.get('age'):
+                missing_fields.append("उम्र")
+            if not collected_info.get('income'):
+                missing_fields.append("वार्षिक आय")
+        
+        missing_info_text = ", ".join(missing_fields) if missing_fields else "कुछ नहीं"
+        
         # Create prompt - optimized for SHORT voice-friendly responses
         prompt = f"""संदर्भ:
 इरादा: {plan.intent.value}
-जानकारी: {json.dumps(plan.available_info, ensure_ascii=False)}
+
+✅ उपयोगकर्ता ने पहले से यह जानकारी दी है: {collected_info_text}
+❌ अभी भी चाहिए: {missing_info_text}
+
+⚠️ बहुत महत्वपूर्ण:
+- जो जानकारी पहले से है (✅) उसे दोबारा मत पूछें!
+- सिर्फ ❌ में दी गई चीज़ें ही पूछें (अगर जरूरी हो)
+- अगर उम्र और आय दोनों मिल गई है, तो पात्रता बताएं, न कि फिर से पूछें
 
 टूल परिणाम:
 {json.dumps(tool_outputs, ensure_ascii=False)}
 
-संदेश: "{self._context.current_input}"
+उपयोगकर्ता का संदेश: "{self._context.current_input}"
 
-⚠️ बहुत महत्वपूर्ण - Voice Output के लिए:
+⚠️ Voice Output के लिए:
 - आप एक महिला सहायिका हैं, महिला की भाषा शैली में बोलें
 - जवाब बहुत छोटा रखें (अधिकतम 2-3 वाक्य)
 - सिर्फ सबसे जरूरी जानकारी दें
 - लंबी सूची न दें
-- यदि जानकारी चाहिए तो सीधे पूछें: "आपकी उम्र और आय क्या है?"
 - फेमिनिन वर्ब्स इस्तेमाल करें (जैसे: "मैं बताती हूं", "मैंने देखा", "मैं आपकी मदद करूंगी")
 
 हिंदी में छोटा जवाब:"""
@@ -549,13 +596,35 @@ class AgenticAgent:
                     if schemes:
                         response_parts.append(f"{len(schemes)} योजनाएं मिलीं।")
         
-        # Ask for missing info
-        missing = list(set(plan.missing_info + sum([r.needs_more_info for r in results], [])))
-        if missing:
-            question = self.failure_handler.get_missing_info_response(missing)
+        # Filter out info that's already collected - don't ask again!
+        available = plan.available_info
+        all_missing = list(set(plan.missing_info + sum([r.needs_more_info for r in results], [])))
+        
+        # Only include truly missing fields
+        actually_missing = []
+        for field in all_missing:
+            if field == "age" and available.get("age"):
+                continue  # Already have age
+            if field == "income" and available.get("income"):
+                continue  # Already have income
+            actually_missing.append(field)
+        
+        if actually_missing:
+            question = self.failure_handler.get_missing_info_response(actually_missing)
             response_parts.append(question)
         
-        return " ".join(response_parts) if response_parts else "कृपया अपनी उम्र और वार्षिक आय बताएं।"
+        # Default response only if we truly have nothing
+        if not response_parts:
+            if not available.get("age") and not available.get("income"):
+                return "कृपया अपनी उम्र और वार्षिक आय बताएं।"
+            elif not available.get("age"):
+                return "कृपया अपनी उम्र बताएं।"
+            elif not available.get("income"):
+                return "कृपया अपनी वार्षिक आय बताएं।"
+            else:
+                return "मैं आपकी पात्रता जांच रही हूं।"
+        
+        return " ".join(response_parts)
     
     def _generate_contradiction_response(self, evaluation: EvaluationResult) -> str:
         """Generate response for handling contradiction"""
@@ -571,8 +640,20 @@ class AgenticAgent:
     def _generate_clarification_request(self, plan: ExecutionPlan, 
                                         evaluation: EvaluationResult) -> str:
         """Generate request for clarification/missing info"""
-        missing = plan.missing_info
-        return self.failure_handler.get_missing_info_response(missing)
+        # Filter out already collected info
+        available = plan.available_info
+        actually_missing = []
+        for field in plan.missing_info:
+            if field == "age" and available.get("age"):
+                continue
+            if field == "income" and available.get("income"):
+                continue
+            actually_missing.append(field)
+        
+        if not actually_missing:
+            return "मैं आपकी पात्रता जांच रही हूं।"
+        
+        return self.failure_handler.get_missing_info_response(actually_missing)
     
     def _handle_contradiction_resolution(self, user_input: str) -> Optional[str]:
         """Handle user's response to a contradiction"""
