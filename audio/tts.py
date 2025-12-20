@@ -129,12 +129,20 @@ class TextToSpeech:
         
         try:
             from gtts import gTTS
+            from pydub import AudioSegment
             
             # Clean text for speech (remove emojis, symbols, markdown)
             clean_text = self._clean_text_for_speech(text)
             
             if not clean_text:
                 return None
+            
+            # For long text, split into chunks and combine
+            # gTTS can fail or truncate with very long text
+            MAX_CHUNK_LENGTH = 500  # Characters per chunk
+            
+            if len(clean_text) > MAX_CHUNK_LENGTH:
+                return self._synthesize_long_text(clean_text, slow)
             
             # Generate speech (Hindi)
             tts = gTTS(text=clean_text, lang="hi", slow=slow)
@@ -144,15 +152,123 @@ class TextToSpeech:
             filepath = OUTPUT_DIR / filename
             tts.save(str(filepath))
             
-            print(f"🔊 Generated audio: {filename}")
+            print(f"🔊 Generated audio: {filename} ({len(clean_text)} chars)")
             return str(filepath)
             
         except Exception as e:
             print(f"TTS error: {e}")
             return None
+    
+    def _synthesize_long_text(self, text: str, slow: bool = False) -> Optional[str]:
+        """
+        Handle long text by splitting into chunks and combining audio
+        """
+        try:
+            from gtts import gTTS
+            from pydub import AudioSegment
+            
+            # Split text into sentences/chunks
+            chunks = self._split_into_chunks(text, max_length=500)
+            
+            if not chunks:
+                return None
+            
+            print(f"🔊 Long text: splitting into {len(chunks)} chunks")
+            
+            # Generate audio for each chunk
+            audio_segments = []
+            temp_files = []
+            
+            for i, chunk in enumerate(chunks):
+                if not chunk.strip():
+                    continue
+                    
+                try:
+                    tts = gTTS(text=chunk, lang="hi", slow=slow)
+                    temp_file = OUTPUT_DIR / f"temp_{uuid.uuid4().hex[:8]}.mp3"
+                    tts.save(str(temp_file))
+                    temp_files.append(temp_file)
+                    
+                    # Load audio segment
+                    segment = AudioSegment.from_mp3(str(temp_file))
+                    audio_segments.append(segment)
+                    
+                except Exception as e:
+                    print(f"Chunk {i} TTS error: {e}")
+                    continue
+            
+            if not audio_segments:
+                return None
+            
+            # Combine all segments
+            combined = audio_segments[0]
+            for segment in audio_segments[1:]:
+                # Add small pause between chunks
+                combined += AudioSegment.silent(duration=200) + segment
+            
+            # Save combined audio
+            filename = f"tts_{uuid.uuid4().hex[:8]}.mp3"
+            filepath = OUTPUT_DIR / filename
+            combined.export(str(filepath), format="mp3")
+            
+            # Cleanup temp files
+            for temp_file in temp_files:
+                try:
+                    temp_file.unlink()
+                except:
+                    pass
+            
+            print(f"🔊 Generated combined audio: {filename} ({len(chunks)} chunks)")
+            return str(filepath)
+            
+        except ImportError:
+            print("⚠️ pydub not available for long text - using truncated version")
+            # Fallback: just use first chunk
+            return self._synthesize_fallback(text[:500], slow)
             
         except Exception as e:
-            print(f"TTS error: {e}")
+            print(f"Long text TTS error: {e}")
+            return self._synthesize_fallback(text[:500], slow)
+    
+    def _split_into_chunks(self, text: str, max_length: int = 500) -> list:
+        """
+        Split text into speakable chunks at sentence boundaries
+        """
+        # Split by sentence-ending punctuation
+        sentences = re.split(r'([।.!?\n])', text)
+        
+        chunks = []
+        current_chunk = ""
+        
+        for i in range(0, len(sentences), 2):
+            sentence = sentences[i]
+            # Add punctuation back if exists
+            if i + 1 < len(sentences):
+                sentence += sentences[i + 1]
+            
+            if len(current_chunk) + len(sentence) <= max_length:
+                current_chunk += sentence
+            else:
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                current_chunk = sentence
+        
+        if current_chunk:
+            chunks.append(current_chunk.strip())
+        
+        return [c for c in chunks if c.strip()]
+    
+    def _synthesize_fallback(self, text: str, slow: bool = False) -> Optional[str]:
+        """Fallback synthesis for when chunking fails"""
+        try:
+            from gtts import gTTS
+            
+            tts = gTTS(text=text, lang="hi", slow=slow)
+            filename = f"tts_{uuid.uuid4().hex[:8]}.mp3"
+            filepath = OUTPUT_DIR / filename
+            tts.save(str(filepath))
+            return str(filepath)
+        except:
             return None
     
     def cleanup(self, max_age_hours: int = 1):

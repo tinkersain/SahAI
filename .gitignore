@@ -13,3 +13,10 @@ venv/
 # OS files
 .DS_Store
 Thumbs.db
+
+# outputs
+audio_output/
+*.mp3
+*.wav
+*.flac
+*.webm

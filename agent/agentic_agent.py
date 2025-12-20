@@ -507,28 +507,23 @@ class AgenticAgent:
         # Conversation history
         history = self.memory.get_history_text()
         
-        # Create prompt
-        prompt = f"""संदर्भ जानकारी:
+        # Create prompt - optimized for SHORT voice-friendly responses
+        prompt = f"""संदर्भ:
+इरादा: {plan.intent.value}
+जानकारी: {json.dumps(plan.available_info, ensure_ascii=False)}
 
-उपयोगकर्ता का इरादा: {plan.intent.value}
-उपयोगकर्ता की जानकारी: {json.dumps(plan.available_info, ensure_ascii=False)}
+टूल परिणाम:
+{json.dumps(tool_outputs, ensure_ascii=False)}
 
-टूल्स के परिणाम:
-{json.dumps(tool_outputs, ensure_ascii=False, indent=2)}
+संदेश: "{self._context.current_input}"
 
-योजनाएं:
-{schemes_context}
+⚠️ बहुत महत्वपूर्ण - Voice Output के लिए:
+- जवाब बहुत छोटा रखें (अधिकतम 2-3 वाक्य)
+- सिर्फ सबसे जरूरी जानकारी दें
+- लंबी सूची न दें
+- यदि जानकारी चाहिए तो सीधे पूछें: "आपकी उम्र और आय क्या है?"
 
-पिछली बातचीत:
-{history}
-
-उपयोगकर्ता का संदेश: "{self._context.current_input}"
-
-कृपया उपयुक्त हिंदी में जवाब दें। नियम:
-1. संक्षिप्त और स्पष्ट रहें (4-6 वाक्य)
-2. टूल के परिणामों का उपयोग करें
-3. यदि पात्रता जांची है तो स्पष्ट बताएं
-4. हेल्पलाइन और आवेदन लिंक दें जब उचित हो"""
+हिंदी में छोटा जवाब:"""
 
         response = self.ai_service.generate_response(prompt)
         return response

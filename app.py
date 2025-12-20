@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -28,6 +29,7 @@ from data.scheme_database import SchemeDatabase
 # Ensure directories exist
 Path("audio_output").mkdir(exist_ok=True)
 Path("logs").mkdir(exist_ok=True)
+Path("static").mkdir(exist_ok=True)
 
 # Initialize services
 stt = SpeechToText()
@@ -64,6 +66,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 # Request/Response Models
@@ -128,6 +133,8 @@ async def home():
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>सहAI - सरकारी योजना सहायक</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="shortcut icon" type="image/svg+xml" href="/static/favicon.svg">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
