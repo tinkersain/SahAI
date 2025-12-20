@@ -1,7 +1,8 @@
 """
 SahAI - Voice-First Hindi Government Scheme Assistant
 Voice-based AI for Indian government welfare schemes
-Everything is processed by Gemini LLM
+Implements true agentic workflow: Planner-Executor-Evaluator loop
+Everything is processed by Gemini LLM with tool orchestration
 """
 import os
 import uuid
@@ -12,20 +13,39 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from config.settings import settings
-from agent.agent import Agent
+from agent.agentic_agent import AgenticAgent
 from agent.memory import Memory, SessionManager
+from agent.failure_handler import get_failure_handler, FailureType
 from audio.stt import SpeechToText
 from audio.tts import TextToSpeech
 from services.ai_service import AIService
 from data.scheme_database import SchemeDatabase
 
 # Ensure directories exist
-Path("audio_output").mkdir(exist_ok=True)
+Path(settings.audio.audio_output_dir).mkdir(exist_ok=True)
 Path("logs").mkdir(exist_ok=True)
+Path("static").mkdir(exist_ok=True)
+
+
+def clear_audio_output():
+    """Clear all audio files from the output directory"""
+    audio_dir = Path(settings.audio.audio_output_dir)
+    if audio_dir.exists():
+        for audio_file in audio_dir.glob("*.mp3"):
+            try:
+                audio_file.unlink()
+            except Exception as e:
+                print(f"Error deleting {audio_file}: {e}")
+        for audio_file in audio_dir.glob("*.wav"):
+            try:
+                audio_file.unlink()
+            except Exception as e:
+                print(f"Error deleting {audio_file}: {e}")
 
 # Initialize services
 stt = SpeechToText()
@@ -33,12 +53,15 @@ tts = TextToSpeech()
 ai_service = AIService()
 scheme_db = SchemeDatabase()
 session_manager = SessionManager()
+failure_handler = get_failure_handler()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup/shutdown"""
     print(f"🚀 SahAI शुरू हो रहा है... ({len(scheme_db.schemes)} योजनाएं लोड की गईं)")
+    print("🤖 Agentic workflow: Planner-Executor-Evaluator enabled")
+    print("🛠️ Tools: eligibility_engine, scheme_retrieval, document_checker, application_status")
     yield
     print("👋 SahAI बंद हो रहा है...")
     tts.cleanup()
@@ -47,8 +70,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="SahAI - सरकारी योजना सहायक",
-    description="Voice-first Hindi AI assistant for government schemes",
-    version="2.0.0",
+    description="Voice-first Hindi AI assistant with agentic workflow for government schemes",
+    version="3.0.0",
     lifespan=lifespan
 )
 
@@ -59,6 +82,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 # Request/Response Models
@@ -72,6 +98,8 @@ class ChatResponse(BaseModel):
     audio_url: Optional[str] = None
     session_id: str
     user_data: Optional[dict] = None
+    tools_used: Optional[list] = None  # Track which tools were used
+    intent: Optional[str] = None  # What was the detected intent
 
 
 # Exception handlers
@@ -85,16 +113,16 @@ async def global_exception_handler(request, exc):
     )
 
 
-def get_or_create_session(session_id: Optional[str]) -> tuple[Memory, Agent]:
-    """Get existing session or create new one"""
+def get_or_create_session(session_id: Optional[str]) -> tuple[Memory, AgenticAgent]:
+    """Get existing session or create new one with agentic agent"""
     if session_id:
         memory = session_manager.get(session_id)
         if memory:
-            return memory, Agent(memory, ai_service, scheme_db)
+            return memory, AgenticAgent(memory, ai_service, scheme_db)
     
     memory = Memory()
     session_manager.add(memory)
-    agent = Agent(memory, ai_service, scheme_db)
+    agent = AgenticAgent(memory, ai_service, scheme_db)
     return memory, agent
 
 
@@ -113,7 +141,10 @@ def generate_audio_response(text: str) -> Optional[str]:
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
-    """Voice-first Hindi interface"""
+    """Voice-first Hindi interface - clears audio output on load"""
+    # Clear previous audio files when page is reloaded
+    clear_audio_output()
+    
     return """
 <!DOCTYPE html>
 <html lang="hi">
@@ -121,6 +152,8 @@ async def home():
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>सहAI - सरकारी योजना सहायक</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="shortcut icon" type="image/svg+xml" href="/static/favicon.svg">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -289,7 +322,7 @@ async def home():
         </div>
         
         <div class="info-box">
-            <h3>📋 मैं इनमें मदद कर सकता हूं:</h3>
+            <h3>📋 मैं इनमें मदद कर सकती हूं:</h3>
             <ul>
                 <li>पेंशन योजना (वृद्धावस्था, विधवा, विकलांग)</li>
                 <li>आवास योजना (ग्रामीण/शहरी)</li>
@@ -456,7 +489,7 @@ async def home():
                     voiceBtn.classList.remove('recording');
                     voiceBtn.textContent = '🎤';
                 }
-                setStatus('⏳ समझ रहा हूं...');
+                setStatus('⏳ समझ रही हूं...');
             }
         }
         
@@ -522,7 +555,7 @@ async def home():
             input.value = '';
             stopSpeaking();
             addMessage(text, 'user');
-            setStatus('⏳ सोच रहा हूं...');
+            setStatus('⏳ सोच रही हूं...');
             setProcessing(true);
             
             try {
@@ -566,7 +599,7 @@ async def voice_input(
 ):
     """
     Primary endpoint - Voice input in Hindi
-    Handles: Audio → STT → Agent Processing → TTS → Audio Response
+    Handles: Audio → STT → Agentic Processing (Plan-Execute-Evaluate) → TTS → Audio Response
     """
     memory, agent = get_or_create_session(session_id)
     
@@ -579,27 +612,43 @@ async def voice_input(
             f.write(content)
             temp_path = f.name
         
-        # Transcribe audio (Hindi)
+        # Transcribe audio (Hindi) with confidence tracking
         transcription = stt.transcribe(temp_path)
+        
+        # Handle STT failures
         if not transcription or not transcription.strip():
-            error_response = "आवाज़ समझ नहीं आई। कृपया फिर से बोलें।"
+            memory.record_stt_error("no_audio")
+            error_response = failure_handler.get_stt_error_response("unclear")
             return {
                 "text": error_response,
                 "audio_url": generate_audio_response(error_response),
                 "session_id": memory.session_id,
-                "transcription": None
+                "transcription": None,
+                "error_type": "stt_unclear"
             }
         
-        # Process through agent (Gemini handles everything)
-        response = agent.process(transcription)
+        # Check for partial/unclear transcription
+        stt_confidence = 1.0  # Default confidence
+        if "[unclear]" in transcription.lower() or len(transcription.split()) < 2:
+            stt_confidence = 0.5
+            memory.record_stt_error("partial")
+        
+        # Process through agentic workflow (Planner-Executor-Evaluator)
+        response = agent.process(transcription, input_confidence=stt_confidence)
         audio_url = generate_audio_response(response)
+        
+        # Get tools used from agent context
+        tools_used = agent._context.tools_called if agent._context else []
+        intent = agent._context.current_plan.intent.value if agent._context and agent._context.current_plan else None
         
         return {
             "text": response,
             "audio_url": audio_url,
             "session_id": memory.session_id,
             "user_data": memory.user_data,
-            "transcription": transcription
+            "transcription": transcription,
+            "tools_used": tools_used,
+            "intent": intent
         }
         
     finally:
@@ -611,6 +660,7 @@ async def voice_input(
 async def text_input(request: TextRequest):
     """
     Secondary endpoint - Text input (also in Hindi)
+    Uses same agentic workflow as voice
     """
     memory, agent = get_or_create_session(request.session_id)
     
@@ -621,22 +671,28 @@ async def text_input(request: TextRequest):
             "session_id": memory.session_id
         }
     
-    # Process through agent (Gemini handles everything)
-    response = agent.process(text)
+    # Process through agentic workflow (Planner-Executor-Evaluator)
+    response = agent.process(text, input_confidence=1.0)  # Full confidence for text input
     audio_url = generate_audio_response(response)
+    
+    # Get tools used from agent context
+    tools_used = agent._context.tools_called if agent._context else []
+    intent = agent._context.current_plan.intent.value if agent._context and agent._context.current_plan else None
     
     return {
         "text": response,
         "audio_url": audio_url,
         "session_id": memory.session_id,
-        "user_data": memory.user_data
+        "user_data": memory.user_data,
+        "tools_used": tools_used,
+        "intent": intent
     }
 
 
 @app.get("/audio/{filename}")
 async def serve_audio(filename: str):
     """Serve generated audio files"""
-    file_path = Path("audio_output") / filename
+    file_path = Path(settings.audio.audio_output_dir) / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Audio not found")
     return FileResponse(file_path, media_type="audio/mpeg")
@@ -658,8 +714,30 @@ async def get_session(session_id: str):
         "session_id": memory.session_id,
         "user_data": memory.get_user_data(),
         "history_length": len(memory.history),
-        "current_scheme": memory.current_scheme
+        "current_scheme": memory.current_scheme,
+        "has_contradictions": memory.has_pending_contradictions(),
+        "failure_context": memory.get_failure_context()
     }
+
+
+@app.get("/debug/memory/{session_id}")
+async def debug_memory(session_id: str):
+    """Debug endpoint to see full memory state"""
+    memory = session_manager.get(session_id)
+    if not memory:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return memory.get_full_state()
+
+
+@app.post("/debug/resolve-contradiction/{session_id}")
+async def resolve_contradiction(session_id: str, field: str, use_new: bool):
+    """Debug endpoint to manually resolve contradictions"""
+    memory = session_manager.get(session_id)
+    if not memory:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    success = memory.resolve_contradiction(field, use_new)
+    return {"success": success, "field": field, "used_new_value": use_new}
 
 
 if __name__ == "__main__":
