@@ -91,17 +91,23 @@ class EligibilityEngineTool(BaseTool):
     def execute(self, inputs: Dict[str, Any], context: Dict[str, Any] = None) -> ToolResult:
         """Check eligibility for all schemes based on available user data"""
         
-        # Check what info we have
-        age = inputs.get("age")
-        income = inputs.get("income")
-        gender = inputs.get("gender")
-        category = inputs.get("category")
-        bpl = inputs.get("bpl")
-        area = inputs.get("area")
-        occupation = inputs.get("occupation")
-        disability = inputs.get("disability")
+        # Merge inputs with context user_data (context takes precedence for already collected info)
+        if context and context.get("user_data"):
+            merged_inputs = {**inputs, **context["user_data"]}
+        else:
+            merged_inputs = inputs.copy()
         
-        # Track what we need for accurate results
+        # Check what info we have (from merged data)
+        age = merged_inputs.get("age")
+        income = merged_inputs.get("income")
+        gender = merged_inputs.get("gender")
+        category = merged_inputs.get("category")
+        bpl = merged_inputs.get("bpl")
+        area = merged_inputs.get("area")
+        occupation = merged_inputs.get("occupation")
+        disability = merged_inputs.get("disability")
+        
+        # Track what we need for accurate results - only truly missing fields
         missing_for_accuracy = []
         if age is None:
             missing_for_accuracy.append("age")
@@ -114,7 +120,7 @@ class EligibilityEngineTool(BaseTool):
         not_eligible = []
         
         for scheme in self.scheme_db.schemes:
-            result = self._check_scheme_eligibility(scheme, inputs)
+            result = self._check_scheme_eligibility(scheme, merged_inputs)
             if result["status"] == "eligible":
                 eligible_schemes.append(result)
             elif result["status"] == "partial":
@@ -123,7 +129,7 @@ class EligibilityEngineTool(BaseTool):
                 not_eligible.append(result)
         
         # Determine overall status
-        if not inputs or all(v is None for v in inputs.values()):
+        if not merged_inputs or all(v is None for v in merged_inputs.values()):
             return ToolResult(
                 tool_name="eligibility_engine",
                 status=ToolStatus.NEEDS_INFO,
@@ -141,7 +147,7 @@ class EligibilityEngineTool(BaseTool):
                 "eligible": eligible_schemes,
                 "partial": partially_eligible,
                 "not_eligible": not_eligible,
-                "user_data_used": {k: v for k, v in inputs.items() if v is not None}
+                "user_data_used": {k: v for k, v in merged_inputs.items() if v is not None}
             },
             message=f"Found {len(eligible_schemes)} eligible schemes",
             message_hi=f"{len(eligible_schemes)} योजनाओं के लिए पात्र",
